@@ -1,0 +1,9 @@
+{
+  "name": "swfl-auto-exchange",
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "@sendgrid/mail": "^7.7.0",
+    "twilio": "^4.21.0"
+  }
+}
