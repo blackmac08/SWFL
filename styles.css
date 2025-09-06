@@ -1,0 +1,68 @@
+/* SWFL Auto Exchange — Florida luxury palette */
+:root{
+  --bg:#0b0f16;
+  --panel:#111725;
+  --muted:#9fb3c8;
+  --text:#f3f7ff;
+  --accent:#2dd4bf;   /* Gulf teal */
+  --accent-2:#f59e0b; /* sun gold */
+  --cta:#14b8a6;
+  --border:#24324a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;line-height:1.5}
+.serif{font-family:'Playfair Display', Georgia, 'Times New Roman', serif; letter-spacing:.3px}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1100px;margin:0 auto;padding:24px}
+.site-header{position:sticky;top:0;background:linear-gradient(90deg, rgba(11,15,22,.85), rgba(17,23,37,.85));backdrop-filter:blur(10px);border-bottom:1px solid var(--border);z-index:10}
+.site-header .wrap{display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;gap:12px;align-items:center}
+.brand-logo img{height:144px;width:auto;display:block;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3))}
+.brand .name{display:flex;flex-direction:column}
+.brand .name strong{font-weight:800;letter-spacing:.2px}
+.brand .name span{font-size:12px;color:var(--muted)}
+nav a{margin-left:18px;color:var(--text);opacity:.9}
+nav a:hover{opacity:1;color:var(--accent)}
+.hero{padding:36px 0;background:linear-gradient(135deg,#0b0f16,#0e1a2d 40%,#0b2740)}
+.hero-grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:center}
+.hero-logo-center{display:flex;justify-content:center;align-items:center;margin-top:6px}
+.hero-logo-center img{height:180px;width:auto;display:block;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))}
+.hero-copy h1{font-size:38px;margin:.2em 0;text-align:center}
+.hero-copy p,.hero-copy ul,.hero-copy .cta,.hero-copy .hero-contact,.hero-copy .tiny{text-align:center}
+.accent{color:var(--accent)} .accent-2{color:var(--accent-2)}
+ul.bullets{padding-left:18px;display:inline-block;text-align:left}
+ul.bullets li{margin:6px 0;color:var(--muted)}
+.cta{display:inline-block;background:var(--cta);color:#061015;padding:12px 16px;border-radius:10px;font-weight:800;margin-top:10px;box-shadow:0 8px 24px rgba(20,184,166,.25)}
+.cta:hover{filter:brightness(1.05);box-shadow:0 10px 30px rgba(245,158,11,.25)}
+.tiny{font-size:12px;color:var(--muted)}
+.hiw{padding:26px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#0b0f1b}
+.hiw .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.step{border:1px solid var(--border);border-radius:14px;padding:16px;background:#0c1120}
+.num{width:28px;height:28px;display:inline-grid;place-items:center;border-radius:50%;background:var(--panel);border:1px solid var(--border);margin-bottom:8px}
+.sell{padding:36px 0}
+form fieldset{border:1px solid var(--border);padding:16px;border-radius:12px;margin:16px 0;background:#0c1120}
+legend{padding:0 8px;color:var(--muted)}
+label{font-size:14px;display:flex;flex-direction:column;gap:6px}
+input,select,textarea{padding:12px;border-radius:10px;border:1px solid var(--border);background:#0b0f1b;color:var(--text)}
+textarea{resize:vertical}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.file input[type=file]{padding:8px;background:#0b0f1b}
+.check{display:flex;align-items:center;gap:10px;flex-direction:row;margin:10px 0}
+.preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;margin-top:10px}
+.preview img{width:100%;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+.site-footer{border-top:1px solid var(--border);background:#0b0f1b}
+.narrow{max-width:720px}
+.hidden{display:none !important}
+.legal ul{line-height:1.8}
+@media (max-width:900px){
+  .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
+}
+/* Trust section */
+.trust{padding:30px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#0b1322}
+.trust-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.trust-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+.trust-card h3{margin:0 0 6px 0;font-family:'Playfair Display', Georgia, serif}
+@media (max-width:900px){.trust-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:600px){.trust-grid{grid-template-columns:1fr}}
