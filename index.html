@@ -2,45 +2,6 @@
 
 <html lang="en">
 <head>
-  <!-- BEGIN SEO: SWFL Auto Exchange -->
-  <title>Sell Your Car in Naples, FL | Cash Offer Today | SWFL Auto Exchange</title>
-  <meta name="description" content="Get a fast cash offer for your car in Naples & Southwest Florida. We buy classic, exotic, antique & daily drivers. Local alternative to CarMax & Carvana.">
-  <link rel="canonical" href="https://swflautoexchange.com/">
-  <meta name="robots" content="index,follow">
-  
-  <!-- Open Graph -->
-  <meta property="og:title" content="Sell Your Car in Naples, FL | Cash Offer Today">
-  <meta property="og:description" content="SWFL Auto Exchange buys cars across Naples & SWFL — classics, exotics, antiques & daily drivers. Get a fast cash offer today.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://swflautoexchange.com/">
-  <meta property="og:image" content="https://swflautoexchange.com/logo.png">
-  
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Sell Your Car in Naples, FL | Cash Offer Today">
-  <meta name="twitter:description" content="Cash for cars in Naples & SWFL. Classic, exotic & antique buyers.">
-  <meta name="twitter:image" content="https://swflautoexchange.com/logo.png">
-  
-  <!-- LocalBusiness / AutoDealer Schema -->
-  <script type="application/ld+json">{
-    "@context": "https://schema.org",
-    "@type": "AutoDealer",
-    "name": "SWFL Auto Exchange",
-    "image": "https://swflautoexchange.com/logo.png",
-    "url": "https://swflautoexchange.com",
-    "telephone": "+1-239-421-4300",
-    "address": {
-      "@type": "PostalAddress",
-      "addressLocality": "Naples",
-      "addressRegion": "FL",
-      "postalCode": "34110",
-      "addressCountry": "US"
-    },
-    "areaServed": ["Naples FL","Bonita Springs FL","Estero FL","Marco Island FL","Fort Myers FL","Cape Coral FL"],
-    "priceRange": "$$"
-  }</script>
-  <!-- END SEO: SWFL Auto Exchange -->
-
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>SWFL Auto Exchange | We Beat Dealer Trade-Ins in Naples &amp; SWFL</title>
@@ -133,7 +94,7 @@
 <div class="wrap">
 <h2>Get Your Offer</h2>
 <p>Complete the form and upload photos. You’ll get a response fast—usually same day.</p>
-<form action="/thank-you" data-netlify="true" data-netlify-honeypot="bot-field" data-netlify-recaptcha="true" enctype="multipart/form-data" id="lead-form" method="POST" name="cash-for-cars">
+<form action="/thank-you.html" data-netlify="true" data-netlify-honeypot="bot-field" data-netlify-recaptcha="true" enctype="multipart/form-data" id="lead-form" method="POST" name="cash-for-cars">
 <input name="form-name" type="hidden" value="cash-for-cars"/>
 <p class="hidden"><label>Don’t fill this out: <input name="bot-field"/></label></p>
 <fieldset>
@@ -203,10 +164,36 @@
 <fieldset>
 <legend>Photos</legend>
 <p class="tiny">Upload clear photos: front, back, both sides, wheels/tires, interior front/rear, dash/odometer, engine bay, VIN sticker, and any flaws.</p>
+
 <label class="file">
-<span>Vehicle photos (optional (up to 6))</span>
-<input accept="image/*" id="photos" multiple="" name="photos" type="file"/>
+  <span>Vehicle photo 1 (optional)</span>
+  <input accept="image/*" id="photos" name="photo1" type="file" data-auto-compress>
 </label>
+<div class="grid-2">
+  <label class="file">
+    <span>Vehicle photo 2 (optional)</span>
+    <input accept="image/*" id="photo2" name="photo2" type="file" data-auto-compress>
+  </label>
+  <label class="file">
+    <span>Vehicle photo 3 (optional)</span>
+    <input accept="image/*" id="photo3" name="photo3" type="file" data-auto-compress>
+  </label>
+</div>
+<div class="grid-2">
+  <label class="file">
+    <span>Vehicle photo 4 (optional)</span>
+    <input accept="image/*" id="photo4" name="photo4" type="file" data-auto-compress>
+  </label>
+  <label class="file">
+    <span>Vehicle photo 5 (optional)</span>
+    <input accept="image/*" id="photo5" name="photo5" type="file" data-auto-compress>
+  </label>
+</div>
+<label class="file">
+  <span>Vehicle photo 6 (optional)</span>
+  <input accept="image/*" id="photo6" name="photo6" type="file" data-auto-compress>
+</label>
+
 <div class="preview" id="photo-preview"></div>
 <div class="grid-2">
 <label class="file">
@@ -239,6 +226,10 @@
 <div class="tiny"><a href="tel:+12392502000">(239) 250-2000</a> • <a href="tel:+12395954021">(239) 595-4021</a> • <a href="mailto:offers@swflautoexchange.com">offers@swflautoexchange.com</a></div>
 </div>
 </footer>
+<script src="assets/compress-before-upload.js"></script>
+<script src="assets/vin-decode.js"></script>
+<script src="assets/netlify-ajax-submit.js"></script>
 <script src="assets/app.js"></script>
-<script src="assets/swfla-sms.js"></script></body>
+<script src="assets/swfla-sms.js"></script><script src="https://www.google.com/recaptcha/api.js" async defer></script>
+</body>
 </html>
