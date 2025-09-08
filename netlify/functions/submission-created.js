@@ -1,7 +1,11 @@
 // netlify/functions/submission-created.js
 // Robust emailer for Netlify Forms → SendGrid with per-recipient fallback.
-// Env: SENDGRID_API_KEY, EMAIL_FROM, EMAIL_TO (comma-separated)
-
+//
+// Env vars required:
+//   SENDGRID_API_KEY - SendGrid API key
+//   EMAIL_FROM       - Verified sender (e.g. alerts@swflautoexchange.com)
+//   EMAIL_TO         - Comma-separated list of recipients
+//
 const sgMail = require('@sendgrid/mail');
 
 function titleCase(key) {
@@ -12,8 +16,24 @@ function titleCase(key) {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function isUrl(val) {
-  return typeof val === 'string' && /^https?:\/\//i.test(val);
+function isStringUrl(s) {
+  return typeof s === 'string' && /^https?:\/\//i.test(s.trim());
+}
+
+// Extract one or more URLs from a value that might be:
+// string | {url}|{href}|{publicURL}|{publicUrl}|{path} | [ ...same... ]
+function extractUrls(val) {
+  const urls = [];
+  const tryPush = (maybe) => { if (isStringUrl(maybe)) urls.push(maybe); };
+
+  if (isStringUrl(val)) tryPush(val);
+  else if (Array.isArray(val)) {
+    val.forEach(v => urls.push(...extractUrls(v)));
+  } else if (val && typeof val === 'object') {
+    const candidates = [val.url, val.href, val.publicURL, val.publicUrl, val.path, val.location];
+    candidates.forEach(tryPush);
+  }
+  return urls;
 }
 
 function classifyFileKey(key) {
@@ -53,20 +73,23 @@ exports.handler = async (event) => {
     const allEntries = Object.entries(data).filter(([k,v]) => v != null && String(v).trim() !== '');
     const fieldEntries = allEntries.filter(([k,_]) => !excluded.has(k));
 
-    // Split info vs file links
+    // Split info vs file links (support arrays/objects)
     const photos = [];
     const files = [];
     for (const [key, val] of fieldEntries) {
-      if (isUrl(val)) {
+      const urls = extractUrls(val);
+      if (urls.length) {
         const type = classifyFileKey(key);
-        if (type === 'photo') photos.push({ key, url: val });
-        else files.push({ key, url: val, type });
+        urls.forEach(u => {
+          if (type === 'photo') photos.push({ key, url: u });
+          else files.push({ key, url: u, type });
+        });
       }
     }
 
-    // Info table rows (non-URL fields)
+    // Info table rows (exclude anything that yielded urls OR non-primitive objects)
     const infoRows = fieldEntries
-      .filter(([_,v]) => !isUrl(v))
+      .filter(([_,v]) => extractUrls(v).length === 0 && typeof v !== 'object')
       .map(([k,v]) => `<tr>
           <td style="padding:6px 8px;border-bottom:1px solid #eee;color:#111;"><strong>${titleCase(k)}</strong></td>
           <td style="padding:6px 8px;border-bottom:1px solid #eee;color:#333;">${esc(v)}</td>
@@ -127,30 +150,23 @@ exports.handler = async (event) => {
       data.vin ? `VIN: ${data.vin}` : '',
       subjectVehicle ? `Vehicle: ${subjectVehicle}` : '',
       '',
-      ...fieldEntries.filter(([_,v]) => !isUrl(v)).map(([k,v]) => `${titleCase(k)}: ${v}`),
+      ...fieldEntries
+          .filter(([_,v]) => extractUrls(v).length === 0 && typeof v !== 'object')
+          .map(([k,v]) => `${titleCase(k)}: ${v}`),
       '',
       ...photos.map((p,i) => `Photo ${i+1}: ${p.url}`),
       ...files.map((f,i) => `${(f.type||'FILE').toUpperCase()}: ${f.url}`)
     ].filter(Boolean);
 
-    // Send individually to each recipient so one failure doesn't block others
+    // Send to each recipient independently so one failure doesn't block others.
     const results = await Promise.allSettled(TO.map(async (rcpt) => {
-      const msg = {
-        to: rcpt,
-        from: FROM,
-        subject,
-        text: textLines.join('\n'),
-        html
-      };
+      const msg = { to: rcpt, from: FROM, subject, text: textLines.join('\n'), html };
       await sgMail.send(msg);
       return rcpt;
     }));
 
-    const summary = results.map(r => (r.status === 'fulfilled' ? `ok:${r.value}` : `fail:${r.reason?.message || 'err'}`)).join(', ');
-    console.log('send summary:', summary);
-
-    // If at least one send worked, return 200
     const anyOk = results.some(r => r.status === 'fulfilled');
+    console.log('send summary:', results.map(r => r.status).join(','));
     return { statusCode: anyOk ? 200 : 502, body: anyOk ? 'ok' : 'all failed' };
   } catch (err) {
     console.error('Function error', err);
