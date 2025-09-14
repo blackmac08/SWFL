@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -32,7 +31,7 @@
 <div class="wrap hero-grid">
 <div class="hero-copy">
 <h1><span class="serif">SWFL’s Private Buyer</span> for <span class="accent">Everyday Cars to Exotics</span></h1>
-<p>We provide discreet valuations and strong cash offers—<strong>aiming to beat your dealer trade-in</strong> when you have one. No dealer quote? <strong>No problem</strong>—we’ll still give you a fast, fair offer and handle everything end‑to‑end.</p>
+<p>We provide discreet valuations and strong cash offers—<strong>aiming to beat your dealer trade-in</strong> when you have one. No dealer quote? <strong>No problem</strong>—we’ll still give you a fast, fair offer and handle everything end-to-end.</p>
 <ul class="bullets">
 <li>Clean, non-junk vehicles (we also handle lien payoffs)</li>
 <li>Late-model, classic, luxury &amp; exotic welcome</li>
@@ -105,12 +104,16 @@
 </div>
 <div class="grid-2">
 <label>Mobile (for quick texts) <input name="phone" placeholder="(###) ###-####" required="" type="tel"/></label>
-<label>ZIP (vehicle location) <input name="zip" pattern="\d{{5}}" required=""/></label>
+<label>ZIP (vehicle location) <input name="zip" pattern="\d{5}" required=""/></label>
 </div>
+<!-- ✅ Updated SMS Consent Checkbox -->
 <label class="check">
-<input name="sms_opt_in" type="checkbox" value="yes"/>
-            I agree to receive texts/emails about my offer. Msg/data rates may apply.
-          </label>
+  <input name="sms_opt_in" type="checkbox" value="yes" required>
+  I agree to receive SMS messages from <strong>SWFL Auto Exchange</strong> about my vehicle quote and related offers. 
+  Msg &amp; data rates may apply. Message frequency varies. Reply STOP to cancel, HELP for help. 
+  See our <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and 
+  <a href="terms.html" target="_blank" rel="noopener">Terms</a>.
+</label>
 </fieldset>
 <fieldset>
 <legend>Vehicle</legend>
@@ -234,7 +237,6 @@
 
 <script>
 (function(){
-  // Only add fallback if a global decoder isn't already handling it
   if (window.__VIN_FALLBACK_WIRED__) return;
   window.__VIN_FALLBACK_WIRED__ = true;
 
@@ -259,7 +261,6 @@
       if (!res.ok) return;
       const data = await res.json();
       const rows = data && data.Results ? data.Results : [];
-      // Find decoded fields
       const find = (name) => {
         const item = rows.find(r => r.Variable && r.Variable.toLowerCase().includes(name));
         return item ? item.Value : '';
@@ -268,13 +269,12 @@
       setIfEmpty(makeEl,  find('make'));
       setIfEmpty(modelEl, find('model'));
       setIfEmpty(trimEl,  find('series') || find('trim'));
-    }catch(e){ /* silent */ }
+    }catch(e){}
   }
 
   if (vinInput){
     vinInput.addEventListener('blur', () => decodeVIN(vinInput.value));
     vinInput.addEventListener('change', () => decodeVIN(vinInput.value));
-    // If VIN is prefilled (e.g., back button), attempt immediately
     if (vinInput.value && vinInput.value.length >= 11){
       decodeVIN(vinInput.value);
     }
