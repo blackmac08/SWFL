@@ -1,175 +1,108 @@
 // netlify/functions/submission-created.js
-// Robust emailer for Netlify Forms → SendGrid with per-recipient fallback.
+// This function is automatically triggered by Netlify on every FORM submission.
+// It sends a compliant SMS via Twilio using your Messaging Service SID.
 //
-// Env vars required:
-//   SENDGRID_API_KEY - SendGrid API key
-//   EMAIL_FROM       - Verified sender (e.g. alerts@swflautoexchange.com)
-//   EMAIL_TO         - Comma-separated list of recipients
+// Required Netlify environment variables:
+//   TWILIO_ACCOUNT_SID   -> ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+//   TWILIO_AUTH_TOKEN    -> your auth token
+//   TWILIO_MESSAGING_SID -> MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 //
-const sgMail = require('@sendgrid/mail');
+// Form fields expected (names from your index.html):
+//   phone, full_name, make, model, year, sms_opt_in ("yes" when checked)
 
-function titleCase(key) {
-  return key
-    .replace(/[_\-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, c => c.toUpperCase());
+/** Normalize US phone numbers to E.164 (+1XXXXXXXXXX) */
+function normalizeUS(num) {
+  if (!num) return null;
+  const digits = String(num).replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+  if (digits.length === 10) return "+1" + digits;
+  // Already E.164 or other
+  if (String(num).startsWith("+")) return String(num);
+  return null;
 }
 
-function isStringUrl(s) {
-  return typeof s === 'string' && /^https?:\/\//i.test(s.trim());
-}
+/** Send SMS using Twilio REST API (no SDK needed) */
+async function sendTwilioSMS({ to, body }) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const messagingSid = process.env.TWILIO_MESSAGING_SID;
 
-// Extract one or more URLs from a value that might be:
-// string | {url}|{href}|{publicURL}|{publicUrl}|{path} | [ ...same... ]
-function extractUrls(val) {
-  const urls = [];
-  const tryPush = (maybe) => { if (isStringUrl(maybe)) urls.push(maybe); };
-
-  if (isStringUrl(val)) tryPush(val);
-  else if (Array.isArray(val)) {
-    val.forEach(v => urls.push(...extractUrls(v)));
-  } else if (val && typeof val === 'object') {
-    const candidates = [val.url, val.href, val.publicURL, val.publicUrl, val.path, val.location];
-    candidates.forEach(tryPush);
+  if (!accountSid || !authToken || !messagingSid) {
+    throw new Error("Missing Twilio env vars. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SID.");
   }
-  return urls;
-}
 
-function classifyFileKey(key) {
-  const k = (key || '').toLowerCase();
-  if (k.includes('photo') || /image|img/.test(k)) return 'photo';
-  if (k.includes('carfax')) return 'carfax';
-  if (k.includes('dealer') && (k.includes('quote') || k.includes('offer'))) return 'dealer';
-  if (k.includes('record')) return 'records';
-  return 'file';
-}
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const params = new URLSearchParams();
+  params.append("To", to);
+  params.append("MessagingServiceSid", messagingSid);
+  params.append("Body", body);
 
-function esc(val) {
-  if (val == null) return '';
-  return String(val).replace(/[<>]/g, s => ({'<':'&lt;','>':'&gt;'}[s]));
+  const basic = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: params.toString()
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Twilio API error ${res.status}: ${text}`);
+  }
+  return res.json();
 }
 
 exports.handler = async (event) => {
   try {
-    const API_KEY = process.env.SENDGRID_API_KEY;
-    const FROM = process.env.EMAIL_FROM;
-    const TO = (process.env.EMAIL_TO || '').split(',').map(s => s.trim()).filter(Boolean);
+    const payload = JSON.parse(event.body);        // Netlify event wrapper
+    const data = payload && (payload.payload || payload); // form data lives under payload.payload
 
-    if (!API_KEY || !FROM || !TO.length) {
-      console.error('Missing env vars', { hasKey: !!API_KEY, hasFrom: !!FROM, toCount: TO.length });
-      return { statusCode: 500, body: 'Missing required env vars' };
-    }
-    sgMail.setApiKey(API_KEY);
+    const {
+      phone,
+      full_name,
+      make,
+      model,
+      year,
+      sms_opt_in
+    } = data || {};
 
-    const json = JSON.parse(event.body || '{}');
-    const payload = json.payload || {};
-    const data = payload.data || payload || {};
-
-    const formName = payload.form_name || data['form-name'] || 'Auto Appraisal Request';
-
-    // Collect fields (skip internal/consent)
-    const excluded = new Set(['form-name','bot-field','g-recaptcha-response','agree','non_junker','sms_opt_in']);
-    const allEntries = Object.entries(data).filter(([k,v]) => v != null && String(v).trim() !== '');
-    const fieldEntries = allEntries.filter(([k,_]) => !excluded.has(k));
-
-    // Split info vs file links (support arrays/objects)
-    const photos = [];
-    const files = [];
-    for (const [key, val] of fieldEntries) {
-      const urls = extractUrls(val);
-      if (urls.length) {
-        const type = classifyFileKey(key);
-        urls.forEach(u => {
-          if (type === 'photo') photos.push({ key, url: u });
-          else files.push({ key, url: u, type });
-        });
-      }
+    // Only send if the user explicitly opted in
+    if (sms_opt_in !== "yes") {
+      console.log("Submission received without SMS opt-in. Skipping SMS.");
+      return { statusCode: 200, body: "No SMS opt-in" };
     }
 
-    // Info table rows (exclude anything that yielded urls OR non-primitive objects)
-    const infoRows = fieldEntries
-      .filter(([_,v]) => extractUrls(v).length === 0 && typeof v !== 'object')
-      .map(([k,v]) => `<tr>
-          <td style="padding:6px 8px;border-bottom:1px solid #eee;color:#111;"><strong>${titleCase(k)}</strong></td>
-          <td style="padding:6px 8px;border-bottom:1px solid #eee;color:#333;">${esc(v)}</td>
-        </tr>`)
-      .join('');
+    const normalized = normalizeUS(phone);
+    if (!normalized) {
+      console.warn("Invalid phone number in submission:", phone);
+      return { statusCode: 200, body: "Invalid phone number; SMS not sent." };
+    }
 
-    // Buttons
-    const btn = (href, label, color) => `
-      <a href="${href}" target="_blank"
-         style="display:inline-block;margin:6px 8px 6px 0;padding:10px 14px;
-                background:${color};color:#fff;text-decoration:none;border-radius:6px;
-                font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;">
-        ${label}
-      </a>`;
+    const name = full_name || "there";
+    const yr = year ? `${year} ` : "";
+    const mk = make || "";
+    const md = model || "";
 
-    const blue = '#0d6efd', green = '#28a745';
-    const photoButtons = photos.map((p,i)=>btn(p.url, `View Photo ${i+1}`, blue)).join('');
-    const fileButtons  = files.map((f,i)=>{
-      const labelMap = { carfax: 'View CarFax', dealer: 'View Dealer Quote', records: 'View Records' };
-      return btn(f.url, labelMap[f.type] || `View File ${i+1}`, green);
-    }).join('');
+    const message =
+      `SWFL Auto Exchange: Thanks ${name}, we received your ${yr}${mk} ${md}. ` +
+      `We'll review and text you an offer shortly. Reply STOP to cancel, HELP for help.`;
 
-    // Subject helper
-    const name  = (data.full_name || data.name || '').toString().trim();
-    const year  = (data.year || '').toString().trim();
-    const make  = (data.make || '').toString().trim().toUpperCase();
-    const model = (data.model || '').toString().trim();
-    const subjectVehicle = [year, make, model].filter(Boolean).join(' ');
-    const subject = `New submission: ${formName}${subjectVehicle ? ' — ' + subjectVehicle : ''}${name ? ' (' + name + ')' : ''}`;
+    const result = await sendTwilioSMS({ to: normalized, body: message });
 
-    const html = `
-      <div style="font-family:Arial,Helvetica,sans-serif;color:#111;font-size:16px;line-height:1.45;">
-        <h2 style="margin:0 0 6px 0;">New submission: ${esc(formName)}</h2>
-        ${name ? `<div><strong>Name:</strong> ${esc(name)}</div>` : ''}
-        ${data.phone ? `<div><strong>Phone:</strong> ${esc(data.phone)}</div>` : ''}
-        ${data.email ? `<div><strong>Email:</strong> ${esc(data.email)}</div>` : ''}
-        ${data.zip ? `<div><strong>ZIP:</strong> ${esc(data.zip)}</div>` : ''}
-        ${data.vin ? `<div><strong>VIN:</strong> ${esc(data.vin)}</div>` : ''}
-        ${subjectVehicle ? `<div><strong>Vehicle:</strong> ${esc(subjectVehicle)}</div>` : ''}
+    console.log("Twilio message created:", {
+      sid: result.sid,
+      to: result.to,
+      status: result.status
+    });
 
-        <div style="height:12px"></div>
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #eee;">
-          ${infoRows || '<tr><td style="padding:8px;color:#666;">(No additional fields)</td></tr>'}
-        </table>
-
-        ${(photos.length || files.length) ? '<div style="height:16px"></div>' : ''}
-        ${photos.length ? `<div><strong>Photos (${photos.length}):</strong><br>${photoButtons}</div>` : ''}
-        ${files.length ? `<div style="margin-top:6px;"><strong>Files (${files.length}):</strong><br>${fileButtons}</div>` : ''}
-      </div>
-    `;
-
-    const textLines = [
-      `New submission: ${formName}`,
-      name ? `Name: ${name}` : '',
-      data.phone ? `Phone: ${data.phone}` : '',
-      data.email ? `Email: ${data.email}` : '',
-      data.zip ? `ZIP: ${data.zip}` : '',
-      data.vin ? `VIN: ${data.vin}` : '',
-      subjectVehicle ? `Vehicle: ${subjectVehicle}` : '',
-      '',
-      ...fieldEntries
-          .filter(([_,v]) => extractUrls(v).length === 0 && typeof v !== 'object')
-          .map(([k,v]) => `${titleCase(k)}: ${v}`),
-      '',
-      ...photos.map((p,i) => `Photo ${i+1}: ${p.url}`),
-      ...files.map((f,i) => `${(f.type||'FILE').toUpperCase()}: ${f.url}`)
-    ].filter(Boolean);
-
-    // Send to each recipient independently so one failure doesn't block others.
-    const results = await Promise.allSettled(TO.map(async (rcpt) => {
-      const msg = { to: rcpt, from: FROM, subject, text: textLines.join('\n'), html };
-      await sgMail.send(msg);
-      return rcpt;
-    }));
-
-    const anyOk = results.some(r => r.status === 'fulfilled');
-    console.log('send summary:', results.map(r => r.status).join(','));
-    return { statusCode: anyOk ? 200 : 502, body: anyOk ? 'ok' : 'all failed' };
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ ok: true, sid: result.sid })
+    };
   } catch (err) {
-    console.error('Function error', err);
-    return { statusCode: 500, body: 'error' };
+    console.error("submission-created error:", err);
+    return { statusCode: 500, body: err.message };
   }
 };
