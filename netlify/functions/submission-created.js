@@ -1,8 +1,21 @@
 // netlify/functions/submission-created.js
-// Enhanced: includes key fields in the SMS body and attaches image files (MMS).
-// Reads Netlify form fields from payload.payload.data, payload.payload, or payload.
+// SWFL Auto Exchange - Form submission handler
+// Sends:
+//  1) End-user confirmation SMS (NO media) if they opted into SMS.
+//  2) Admin alert with details + photos (MMS) to configured admin numbers.
 //
-// Env vars required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SID
+// Env vars required:
+//   TWILIO_ACCOUNT_SID
+//   TWILIO_AUTH_TOKEN
+//   TWILIO_MESSAGING_SID
+// Optional:
+//   ADMIN_SMS  -> comma-separated admin numbers (E.164 or US 10-digit).
+//   ALERT_PHONE -> legacy alternate for single or comma-separated admin numbers.
+//
+// Notes:
+// - Reads fields from payload.payload.data (webhook), payload.payload, or payload.
+// - Accepts sms_opt_in values: yes/on/true/1 (case-insensitive).
+// - Attaches up to 10 image URLs for admin MMS if the fields include public image URLs.
 
 function normalizeUS(num) {
   if (!num) return null;
@@ -19,7 +32,6 @@ function isOptedIn(value) {
   return v === "yes" || v === "on" || v === "true" || v === "1";
 }
 
-// Heuristics: treat value as a public image URL if it looks like a URL and has an image extension
 function isImageUrl(v) {
   if (!v || typeof v !== "string") return false;
   const s = v.trim().toLowerCase();
@@ -27,7 +39,7 @@ function isImageUrl(v) {
   return /\.(jpg|jpeg|png|gif|webp)$/i.test(s);
 }
 
-async function sendTwilio({ to, body, mediaUrls = [] }) {
+async function twilioSend({ to, body, mediaUrls = [] }) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const messagingSid = process.env.TWILIO_MESSAGING_SID;
@@ -42,7 +54,6 @@ async function sendTwilio({ to, body, mediaUrls = [] }) {
   params.append("MessagingServiceSid", messagingSid);
   params.append("Body", body);
 
-  // Add up to 10 media URLs
   mediaUrls.slice(0, 10).forEach(u => params.append("MediaUrl", u));
 
   const basic = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
@@ -55,11 +66,9 @@ async function sendTwilio({ to, body, mediaUrls = [] }) {
     body: params.toString()
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Twilio API error ${res.status}: ${text}`);
-  }
-  return res.json();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Twilio API error ${res.status}: ${text}`);
+  try { return JSON.parse(text); } catch { return { raw: text }; }
 }
 
 exports.handler = async (event) => {
@@ -73,17 +82,10 @@ exports.handler = async (event) => {
     console.log("payload keys:", body && typeof body === "object" ? Object.keys(body).join(", ") : "(none)");
     console.log("field keys:", Object.keys(fields).join(", "));
 
-    // Accept both snake_case and title-cased keys
-    const rawOpt = fields.sms_opt_in ?? fields["Sms Opt In"];
-    console.log("sms_opt_in raw:", rawOpt);
-    const opted = isOptedIn(rawOpt);
-    if (!opted) {
-      console.info("Submission received without SMS opt-in (interpreted). Skipping SMS.");
-      return { statusCode: 200, body: "No SMS opt-in" };
-    }
-
+    // ---- Pull common fields (title-cased or snake_case) ----
+    const full_name = fields.full_name ?? fields["Full Name"] ?? fields.name ?? "there";
+    const email = fields.email ?? fields.Email;
     const phone = fields.phone ?? fields.Phone;
-    const full_name = fields.full_name ?? fields["Full Name"] ?? fields.name;
     const zip = fields.zip ?? fields.Zip ?? fields["ZIP (vehicle location)"];
     const vin = fields.vin ?? fields.VIN ?? fields.Vin;
     const year = fields.year ?? fields.Year;
@@ -92,42 +94,83 @@ exports.handler = async (event) => {
     const mileage = fields.mileage ?? fields.Mileage;
     const issues = fields.issues ?? fields.Issues ?? fields["Known issues / damage"];
     const options = fields.options ?? fields.Options ?? fields["Notable options / packages"];
+    const asking = fields.asking_price ?? fields["Asking Price"] ?? fields["Asking price (optional)"];
+    const dealerQuote = fields.dealer_quote ?? fields["Dealer Quote"] ?? fields["Dealer trade-in quote to beat (optional)"];
+    const records = fields.records || fields["Carfax/Service records"] || fields.carfax;
 
-    const normalized = normalizeUS(phone);
-    if (!normalized) {
-      console.warn("Invalid phone number in submission:", phone);
-      return { statusCode: 200, body: "Invalid phone number; SMS not sent." };
+    const normalizedUser = normalizeUS(phone);
+
+    // ---- End-user confirmation (NO media) ----
+    const rawOpt = fields.sms_opt_in ?? fields["Sms Opt In"];
+    console.log("sms_opt_in raw:", rawOpt);
+    if (isOptedIn(rawOpt) && normalizedUser) {
+      const userBody =
+        `SWFL Auto Exchange: Thanks ${full_name}! We received your info. ` +
+        `We’ll review it and text your offer today (usually same day). ` +
+        `Reply STOP to cancel, HELP for help.`;
+
+      try {
+        const r = await twilioSend({ to: normalizedUser, body: userBody });
+        console.log("User SMS created:", { sid: r.sid, to: r.to, status: r.status });
+      } catch (e) {
+        console.error("User SMS error:", e.message);
+      }
+    } else {
+      console.log("User SMS not sent (no opt-in or missing phone).");
     }
 
-    // Build a concise body (SMS-friendly)
-    const line1 = `SWFL Auto Exchange: Thanks ${full_name || "there"}!`;
-    const line2 = `${year || ""} ${make || ""} ${model || ""}`.replace(/\s+/g, " ").trim();
-    const line3 = [
-      vin ? `VIN ${String(vin).slice(-8)}` : null,
-      mileage ? `${mileage} mi` : null,
-      zip ? `ZIP ${zip}` : null
+    // ---- Build admin message body ----
+    const lines = [];
+    lines.push("New website submission:");
+    lines.push(`${year || ""} ${make || ""} ${model || ""}`.replace(/\s+/g, " ").trim());
+    const meta = [
+      full_name ? `Name: ${full_name}` : null,
+      phone ? `Phone: ${phone}` : null,
+      email ? `Email: ${email}` : null,
+      zip ? `ZIP: ${zip}` : null,
+      vin ? `VIN: ${vin}` : null,
+      mileage ? `Mileage: ${mileage}` : null,
     ].filter(Boolean).join(" • ");
-    const line4 = issues ? `Issues: ${String(issues).slice(0, 100)}${String(issues).length > 100 ? "..." : ""}` : null;
+    if (meta) lines.push(meta);
+    if (issues) lines.push(`Issues: ${String(issues).slice(0, 200)}${String(issues).length > 200 ? "..." : ""}`);
+    if (options) lines.push(`Options: ${String(options).slice(0, 160)}${String(options).length > 160 ? "..." : ""}`);
+    if (asking) lines.push(`Asking: ${asking}`);
+    if (dealerQuote) lines.push(`Dealer quote: ${dealerQuote}`);
+    if (typeof records === "string" && /^https?:\/\//i.test(records)) lines.push(`Records: ${records}`);
+    const adminBody = lines.join("\n");
 
-    const bodyParts = [line1, line2, line3, line4, "Reply STOP to cancel, HELP for help."];
-    const smsBody = bodyParts.filter(Boolean).join("\n");
-
-    // Collect media from known fields (photo1..photo10 etc.)
-    const candidateKeys = Object.keys(fields).filter(k => /photo|image|pic/i.test(k) || /file/i.test(k));
+    // ---- Collect media URLs for admin MMS ----
     const mediaUrls = [];
-    for (const key of candidateKeys) {
+    for (const key of Object.keys(fields)) {
+      if (!/photo|image|pic/i.test(key) && !/file/i.test(key)) continue;
       const val = fields[key];
       if (typeof val === "string" && isImageUrl(val)) mediaUrls.push(val);
-      // Some integrations send { url: "..." }
-      if (val && typeof val === "object" && typeof val.url === "string" && isImageUrl(val.url)) {
-        mediaUrls.push(val.url);
+      if (val && typeof val === "object" && typeof val.url === "string" && isImageUrl(val.url)) mediaUrls.push(val.url);
+    }
+    console.log("Admin media url count:", mediaUrls.length);
+
+    // ---- Admin recipients ----
+    const rawAdmins = process.env.ADMIN_SMS || process.env.ALERT_PHONE ||
+      "+17409745169, +12392502000, +12395954021"; // fallback to the three numbers provided
+    const adminTargets = String(rawAdmins).split(",").map(s => normalizeUS(s)).filter(Boolean);
+
+    // ---- Send admin MMS; on failure, retry SMS-only ----
+    for (const admin of adminTargets) {
+      try {
+        const r1 = await twilioSend({ to: admin, body: adminBody, mediaUrls });
+        console.log("Admin MMS created:", { admin, sid: r1.sid, status: r1.status, mediaCount: mediaUrls.length });
+      } catch (err) {
+        console.error("Admin MMS failed, retrying SMS-only:", admin, err.message);
+        try {
+          const r2 = await twilioSend({ to: admin, body: adminBody, mediaUrls: [] });
+          console.log("Admin SMS fallback created:", { admin, sid: r2.sid, status: r2.status });
+        } catch (e2) {
+          console.error("Admin SMS fallback failed:", admin, e2.message);
+        }
       }
     }
 
-    const result = await sendTwilio({ to: normalized, body: smsBody, mediaUrls });
-
-    console.log("Twilio message created:", { sid: result.sid, to: result.to, status: result.status, mediaCount: mediaUrls.length });
-    return { statusCode: 200, body: JSON.stringify({ ok: true, sid: result.sid, mediaCount: mediaUrls.length }) };
+    return { statusCode: 200, body: "OK" };
   } catch (err) {
     console.error("submission-created error:", err);
     return { statusCode: 500, body: err.message };
