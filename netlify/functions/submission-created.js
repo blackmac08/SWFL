@@ -1,27 +1,24 @@
 // netlify/functions/submission-created.js
-// This function is automatically triggered by Netlify on every FORM submission.
-// It sends a compliant SMS via Twilio using your Messaging Service SID.
+// Robust version: logs incoming keys and accepts multiple truthy values for checkbox.
+// Sends SMS via Twilio Messaging Service on each Netlify form submission.
 //
-// Required Netlify environment variables:
-//   TWILIO_ACCOUNT_SID   -> ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//   TWILIO_AUTH_TOKEN    -> your auth token
-//   TWILIO_MESSAGING_SID -> MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//
-// Form fields expected (names from your index.html):
-//   phone, full_name, make, model, year, sms_opt_in ("yes" when checked)
+// Env vars required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SID
 
-/** Normalize US phone numbers to E.164 (+1XXXXXXXXXX) */
 function normalizeUS(num) {
   if (!num) return null;
   const digits = String(num).replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
   if (digits.length === 10) return "+1" + digits;
-  // Already E.164 or other
   if (String(num).startsWith("+")) return String(num);
   return null;
 }
 
-/** Send SMS using Twilio REST API (no SDK needed) */
+function isOptedIn(value) {
+  if (value == null) return false;
+  const v = String(value).trim().toLowerCase();
+  return v === "yes" || v === "on" || v === "true" || v === "1";
+}
+
 async function sendTwilioSMS({ to, body }) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -56,21 +53,19 @@ async function sendTwilioSMS({ to, body }) {
 
 exports.handler = async (event) => {
   try {
-    const payload = JSON.parse(event.body);        // Netlify event wrapper
-    const data = payload && (payload.payload || payload); // form data lives under payload.payload
+    const payload = JSON.parse(event.body);
+    const data = payload && (payload.payload || payload) || {};
 
-    const {
-      phone,
-      full_name,
-      make,
-      model,
-      year,
-      sms_opt_in
-    } = data || {};
+    // Debug: log the keys we received and the raw sms_opt_in value
+    const keys = Object.keys(data).sort();
+    console.log("Submission keys:", keys.join(", "));
+    console.log("sms_opt_in raw value:", data.sms_opt_in);
 
-    // Only send if the user explicitly opted in
-    if (sms_opt_in !== "yes") {
-      console.log("Submission received without SMS opt-in. Skipping SMS.");
+    const { phone, full_name, make, model, year } = data;
+    const opted = isOptedIn(data.sms_opt_in);
+
+    if (!opted) {
+      console.info("Submission received without SMS opt-in (interpreted). Skipping SMS.");
       return { statusCode: 200, body: "No SMS opt-in" };
     }
 
@@ -91,16 +86,8 @@ exports.handler = async (event) => {
 
     const result = await sendTwilioSMS({ to: normalized, body: message });
 
-    console.log("Twilio message created:", {
-      sid: result.sid,
-      to: result.to,
-      status: result.status
-    });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ ok: true, sid: result.sid })
-    };
+    console.log("Twilio message created:", { sid: result.sid, to: result.to, status: result.status });
+    return { statusCode: 200, body: JSON.stringify({ ok: true, sid: result.sid }) };
   } catch (err) {
     console.error("submission-created error:", err);
     return { statusCode: 500, body: err.message };
