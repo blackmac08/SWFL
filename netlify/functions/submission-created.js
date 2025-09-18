@@ -1,9 +1,9 @@
 // netlify/functions/submission-created.js
-// SWFL Auto Exchange - Form submission handler
+// SWFL Auto Exchange - Form submission handler (links-aware)
 // Sends:
 //  1) End-user confirmation SMS (NO media) if they opted into SMS.
 //  2) Admin alert with details + photos (MMS) to configured admin numbers,
-//     including links to CarFax/records and Dealer quote when present.
+//     including proper links for CarFax/records and any file uploads.
 //
 // Env vars required:
 //   TWILIO_ACCOUNT_SID
@@ -37,6 +37,36 @@ function isImageUrl(v) {
 
 function isUrl(v) {
   return typeof v === "string" && /^https?:\/\//i.test(v.trim());
+}
+
+// Extract 1+ URLs from a field value which may be:
+// string (url), object ({url|href}), array of strings/objects
+function extractUrls(value, { imagesOnly = false } = {}) {
+  const urls = [];
+  const pushIfValid = (u) => {
+    if (typeof u !== "string") return;
+    const s = u.trim();
+    if (!/^https?:\/\//i.test(s)) return;
+    if (imagesOnly && !isImageUrl(s)) return;
+    urls.push(s);
+  };
+  const dig = (v) => {
+    if (!v) return;
+    if (typeof v === "string") {
+      pushIfValid(v);
+    } else if (Array.isArray(v)) {
+      v.forEach(dig);
+    } else if (typeof v === "object") {
+      if (v.url) pushIfValid(v.url);
+      if (v.href) pushIfValid(v.href);
+      // sometimes the value is nested like { secure_url: "...", public_url: "..." }
+      if (v.secure_url) pushIfValid(v.secure_url);
+      if (v.public_url) pushIfValid(v.public_url);
+    }
+  };
+  dig(value);
+  // de-dupe
+  return Array.from(new Set(urls));
 }
 
 async function twilioSend({ to, body, mediaUrls = [] }) {
@@ -136,17 +166,15 @@ exports.handler = async (event) => {
     if (options) lines.push(`Options: ${String(options).slice(0, 160)}${String(options).length > 160 ? "..." : ""}`);
     if (asking) lines.push(`Asking: ${asking}`);
 
-    // Dealer quote: include numeric or text; if a URL, show as link
-    if (dealerQuoteVal) {
-      if (isUrl(dealerQuoteVal)) lines.push(`Dealer quote link: ${dealerQuoteVal}`);
-      else lines.push(`Dealer quote: ${dealerQuoteVal}`);
-    }
+    // Dealer quote: include numeric or text; if a URL/object, extract URLs
+    const dqUrls = extractUrls(dealerQuoteVal);
+    if (dqUrls.length) lines.push(`Dealer quote link: ${dqUrls.join(" ")}`);
+    else if (dealerQuoteVal) lines.push(`Dealer quote: ${dealerQuoteVal}`);
 
-    // CarFax / Records: if URL present, include link
-    if (recordsVal) {
-      if (isUrl(recordsVal)) lines.push(`Records: ${recordsVal}`);
-      else lines.push(`Records: ${recordsVal}`);
-    }
+    // CarFax / Records: support URL/object/array
+    const recUrls = extractUrls(recordsVal);
+    if (recUrls.length) lines.push(`Records: ${recUrls.join(" ")}`);
+    else if (recordsVal) lines.push(`Records: ${recordsVal}`);
 
     const adminBody = lines.join("\n");
 
@@ -155,10 +183,13 @@ exports.handler = async (event) => {
     for (const key of Object.keys(fields)) {
       if (!/photo|image|pic/i.test(key) && !/file/i.test(key)) continue;
       const val = fields[key];
-      if (typeof val === "string" && isImageUrl(val)) mediaUrls.push(val);
-      if (val && typeof val === "object" && typeof val.url === "string" && isImageUrl(val.url)) mediaUrls.push(val.url);
+      // gather only images for MMS
+      const imgUrls = extractUrls(val, { imagesOnly: true });
+      mediaUrls.push(...imgUrls);
     }
-    console.log("Admin media url count:", mediaUrls.length);
+    // de-dupe and cap to 10
+    const uniqueMedia = Array.from(new Set(mediaUrls)).slice(0, 10);
+    console.log("Admin media url count:", uniqueMedia.length);
 
     // ---- Admin recipients ----
     const rawAdmins = process.env.ADMIN_SMS || process.env.ALERT_PHONE ||
@@ -168,8 +199,8 @@ exports.handler = async (event) => {
     // ---- Send admin MMS; on failure, retry SMS-only ----
     for (const admin of adminTargets) {
       try {
-        const r1 = await twilioSend({ to: admin, body: adminBody, mediaUrls });
-        console.log("Admin MMS created:", { admin, sid: r1.sid, status: r1.status, mediaCount: mediaUrls.length });
+        const r1 = await twilioSend({ to: admin, body: adminBody, mediaUrls: uniqueMedia });
+        console.log("Admin MMS created:", { admin, sid: r1.sid, status: r1.status, mediaCount: uniqueMedia.length });
       } catch (err) {
         console.error("Admin MMS failed, retrying SMS-only:", admin, err.message);
         try {
