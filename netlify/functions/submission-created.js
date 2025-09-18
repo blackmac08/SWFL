@@ -1,17 +1,15 @@
 // netlify/functions/submission-created.js
-// SWFL Auto Exchange - Form submission handler (links-aware)
+// SWFL Auto Exchange - Form submission handler (files + links aware)
 // Sends:
 //  1) End-user confirmation SMS (NO media) if they opted into SMS.
 //  2) Admin alert with details + photos (MMS) to configured admin numbers,
-//     including proper links for CarFax/records and any file uploads.
+//     including links to CarFax/records, Dealer Quote (even if uploaded as PDF),
+//     and a list of any other non-image files.
 //
-// Env vars required:
-//   TWILIO_ACCOUNT_SID
-//   TWILIO_AUTH_TOKEN
-//   TWILIO_MESSAGING_SID
-// Optional:
-//   ADMIN_SMS  -> comma-separated admin numbers (E.164 or US 10-digit).
-//   ALERT_PHONE -> legacy alternate for single or comma-separated admin numbers.
+// Required env:
+//   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SID
+// Optional env:
+//   ADMIN_SMS (comma-separated), ALERT_PHONE (comma-separated)
 //
 function normalizeUS(num) {
   if (!num) return null;
@@ -39,8 +37,7 @@ function isUrl(v) {
   return typeof v === "string" && /^https?:\/\//i.test(v.trim());
 }
 
-// Extract 1+ URLs from a field value which may be:
-// string (url), object ({url|href}), array of strings/objects
+// Extract URLs from string/object/array. If imagesOnly=true, only image links.
 function extractUrls(value, { imagesOnly = false } = {}) {
   const urls = [];
   const pushIfValid = (u) => {
@@ -59,14 +56,24 @@ function extractUrls(value, { imagesOnly = false } = {}) {
     } else if (typeof v === "object") {
       if (v.url) pushIfValid(v.url);
       if (v.href) pushIfValid(v.href);
-      // sometimes the value is nested like { secure_url: "...", public_url: "..." }
       if (v.secure_url) pushIfValid(v.secure_url);
       if (v.public_url) pushIfValid(v.public_url);
     }
   };
   dig(value);
-  // de-dupe
   return Array.from(new Set(urls));
+}
+
+// Find value by exact keys or by keys that include all provided words (case-insensitive)
+function valueByKeysOrWords(fields, exactKeys, wordsAll) {
+  for (const k of exactKeys) if (k in fields) return fields[k];
+  const entries = Object.keys(fields);
+  const words = wordsAll.map(w => String(w).toLowerCase());
+  for (const key of entries) {
+    const low = key.toLowerCase();
+    if (words.every(w => low.includes(w))) return fields[key];
+  }
+  return undefined;
 }
 
 async function twilioSend({ to, body, mediaUrls = [] }) {
@@ -112,7 +119,7 @@ exports.handler = async (event) => {
     console.log("payload keys:", body && typeof body === "object" ? Object.keys(body).join(", ") : "(none)");
     console.log("field keys:", Object.keys(fields).join(", "));
 
-    // ---- Pull fields (title-cased or snake_case) ----
+    // ---- Pull common fields (title-cased or snake_case) ----
     const full_name = fields.full_name ?? fields["Full Name"] ?? fields.name ?? "there";
     const email = fields.email ?? fields.Email;
     const phone = fields.phone ?? fields.Phone;
@@ -125,8 +132,18 @@ exports.handler = async (event) => {
     const issues = fields.issues ?? fields.Issues ?? fields["Known issues / damage"];
     const options = fields.options ?? fields.Options ?? fields["Notable options / packages"];
     const asking = fields.asking_price ?? fields["Asking Price"] ?? fields["Asking price (optional)"];
-    const dealerQuoteVal = fields.dealer_quote ?? fields["Dealer Quote"] ?? fields["Dealer trade-in quote to beat (optional)"] ?? fields.dealerquote;
-    const recordsVal = fields.records || fields["Carfax/Service records"] || fields.carfax || fields.carfax_link || fields["Carfax Link"];
+    // Dealer quote may be text, number, url, object, or array; detect by common names or by containing both words
+    const dealerQuoteVal = valueByKeysOrWords(
+      fields,
+      ["dealer_quote", "Dealer Quote", "Dealer trade-in quote to beat (optional)", "dealerquote"],
+      ["dealer", "quote"]
+    );
+    // Records/CarFax
+    const recordsVal = valueByKeysOrWords(
+      fields,
+      ["records", "Carfax/Service records", "carfax", "carfax_link", "Carfax Link"],
+      ["carfax"]
+    );
 
     const normalizedUser = normalizeUS(phone);
 
@@ -166,34 +183,49 @@ exports.handler = async (event) => {
     if (options) lines.push(`Options: ${String(options).slice(0, 160)}${String(options).length > 160 ? "..." : ""}`);
     if (asking) lines.push(`Asking: ${asking}`);
 
-    // Dealer quote: include numeric or text; if a URL/object, extract URLs
+    // Dealer quote links or value
     const dqUrls = extractUrls(dealerQuoteVal);
     if (dqUrls.length) lines.push(`Dealer quote link: ${dqUrls.join(" ")}`);
-    else if (dealerQuoteVal) lines.push(`Dealer quote: ${dealerQuoteVal}`);
+    else if (dealerQuoteVal != null) lines.push(`Dealer quote: ${dealerQuoteVal}`);
 
-    // CarFax / Records: support URL/object/array
+    // CarFax / Records links or value
     const recUrls = extractUrls(recordsVal);
     if (recUrls.length) lines.push(`Records: ${recUrls.join(" ")}`);
-    else if (recordsVal) lines.push(`Records: ${recordsVal}`);
+    else if (recordsVal != null) lines.push(`Records: ${recordsVal}`);
+
+    // Other non-image file URLs (ensure PDFs/others show up even if not mapped)
+    const otherFileUrls = [];
+    for (const [key, val] of Object.entries(fields)) {
+      // skip dealer/records fields (already handled)
+      const low = key.toLowerCase();
+      if (low.includes("dealer") && low.includes("quote")) continue;
+      if (low.includes("carfax") || low.includes("records")) continue;
+
+      const urls = extractUrls(val);
+      // take any that are NOT images
+      urls.forEach(u => { if (!isImageUrl(u)) otherFileUrls.push(u); });
+    }
+    const uniqueOtherFiles = Array.from(new Set(otherFileUrls));
+    if (uniqueOtherFiles.length) {
+      // Keep within SMS size limits by joining with space
+      lines.push(`Files attached: ${uniqueOtherFiles.join(" ")}`);
+    }
 
     const adminBody = lines.join("\n");
 
-    // ---- Collect media URLs for admin MMS ----
+    // ---- Collect media URLs for admin MMS (images only) ----
     const mediaUrls = [];
     for (const key of Object.keys(fields)) {
-      if (!/photo|image|pic/i.test(key) && !/file/i.test(key)) continue;
       const val = fields[key];
-      // gather only images for MMS
       const imgUrls = extractUrls(val, { imagesOnly: true });
       mediaUrls.push(...imgUrls);
     }
-    // de-dupe and cap to 10
     const uniqueMedia = Array.from(new Set(mediaUrls)).slice(0, 10);
     console.log("Admin media url count:", uniqueMedia.length);
 
     // ---- Admin recipients ----
     const rawAdmins = process.env.ADMIN_SMS || process.env.ALERT_PHONE ||
-      "+17409745169, +12392502000, +12395954021"; // fallback to provided numbers
+      "+17409745169, +12392502000, +12395954021"; // fallback
     const adminTargets = String(rawAdmins).split(",").map(s => normalizeUS(s)).filter(Boolean);
 
     // ---- Send admin MMS; on failure, retry SMS-only ----
