@@ -2,7 +2,8 @@
 // SWFL Auto Exchange - Form submission handler
 // Sends:
 //  1) End-user confirmation SMS (NO media) if they opted into SMS.
-//  2) Admin alert with details + photos (MMS) to configured admin numbers.
+//  2) Admin alert with details + photos (MMS) to configured admin numbers,
+//     including links to CarFax/records and Dealer quote when present.
 //
 // Env vars required:
 //   TWILIO_ACCOUNT_SID
@@ -12,11 +13,6 @@
 //   ADMIN_SMS  -> comma-separated admin numbers (E.164 or US 10-digit).
 //   ALERT_PHONE -> legacy alternate for single or comma-separated admin numbers.
 //
-// Notes:
-// - Reads fields from payload.payload.data (webhook), payload.payload, or payload.
-// - Accepts sms_opt_in values: yes/on/true/1 (case-insensitive).
-// - Attaches up to 10 image URLs for admin MMS if the fields include public image URLs.
-
 function normalizeUS(num) {
   if (!num) return null;
   const digits = String(num).replace(/\D/g, "");
@@ -37,6 +33,10 @@ function isImageUrl(v) {
   const s = v.trim().toLowerCase();
   if (!/^https?:\/\//.test(s)) return false;
   return /\.(jpg|jpeg|png|gif|webp)$/i.test(s);
+}
+
+function isUrl(v) {
+  return typeof v === "string" && /^https?:\/\//i.test(v.trim());
 }
 
 async function twilioSend({ to, body, mediaUrls = [] }) {
@@ -82,7 +82,7 @@ exports.handler = async (event) => {
     console.log("payload keys:", body && typeof body === "object" ? Object.keys(body).join(", ") : "(none)");
     console.log("field keys:", Object.keys(fields).join(", "));
 
-    // ---- Pull common fields (title-cased or snake_case) ----
+    // ---- Pull fields (title-cased or snake_case) ----
     const full_name = fields.full_name ?? fields["Full Name"] ?? fields.name ?? "there";
     const email = fields.email ?? fields.Email;
     const phone = fields.phone ?? fields.Phone;
@@ -95,8 +95,8 @@ exports.handler = async (event) => {
     const issues = fields.issues ?? fields.Issues ?? fields["Known issues / damage"];
     const options = fields.options ?? fields.Options ?? fields["Notable options / packages"];
     const asking = fields.asking_price ?? fields["Asking Price"] ?? fields["Asking price (optional)"];
-    const dealerQuote = fields.dealer_quote ?? fields["Dealer Quote"] ?? fields["Dealer trade-in quote to beat (optional)"];
-    const records = fields.records || fields["Carfax/Service records"] || fields.carfax;
+    const dealerQuoteVal = fields.dealer_quote ?? fields["Dealer Quote"] ?? fields["Dealer trade-in quote to beat (optional)"] ?? fields.dealerquote;
+    const recordsVal = fields.records || fields["Carfax/Service records"] || fields.carfax || fields.carfax_link || fields["Carfax Link"];
 
     const normalizedUser = normalizeUS(phone);
 
@@ -135,8 +135,19 @@ exports.handler = async (event) => {
     if (issues) lines.push(`Issues: ${String(issues).slice(0, 200)}${String(issues).length > 200 ? "..." : ""}`);
     if (options) lines.push(`Options: ${String(options).slice(0, 160)}${String(options).length > 160 ? "..." : ""}`);
     if (asking) lines.push(`Asking: ${asking}`);
-    if (dealerQuote) lines.push(`Dealer quote: ${dealerQuote}`);
-    if (typeof records === "string" && /^https?:\/\//i.test(records)) lines.push(`Records: ${records}`);
+
+    // Dealer quote: include numeric or text; if a URL, show as link
+    if (dealerQuoteVal) {
+      if (isUrl(dealerQuoteVal)) lines.push(`Dealer quote link: ${dealerQuoteVal}`);
+      else lines.push(`Dealer quote: ${dealerQuoteVal}`);
+    }
+
+    // CarFax / Records: if URL present, include link
+    if (recordsVal) {
+      if (isUrl(recordsVal)) lines.push(`Records: ${recordsVal}`);
+      else lines.push(`Records: ${recordsVal}`);
+    }
+
     const adminBody = lines.join("\n");
 
     // ---- Collect media URLs for admin MMS ----
@@ -151,7 +162,7 @@ exports.handler = async (event) => {
 
     // ---- Admin recipients ----
     const rawAdmins = process.env.ADMIN_SMS || process.env.ALERT_PHONE ||
-      "+17409745169, +12392502000, +12395954021"; // fallback to the three numbers provided
+      "+17409745169, +12392502000, +12395954021"; // fallback to provided numbers
     const adminTargets = String(rawAdmins).split(",").map(s => normalizeUS(s)).filter(Boolean);
 
     // ---- Send admin MMS; on failure, retry SMS-only ----
