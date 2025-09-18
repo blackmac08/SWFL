@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -113,12 +114,12 @@
 </div>
 <!-- ✅ Improved SMS Consent Checkbox Formatting -->
 <label class="check">
-  <input name="sms_opt_in" type="checkbox" value="yes" required>
-  I agree to receive SMS messages from <strong>SWFL Auto Exchange</strong> about my vehicle quote and related offers.<br>
-  <small>
+<input name="sms_opt_in" required="" type="checkbox" value="yes"/>
+  I agree to receive SMS messages from <strong>SWFL Auto Exchange</strong> about my vehicle quote and related offers.<br/>
+<small>
     Msg &amp; data rates may apply. Message frequency varies. Reply STOP to cancel, HELP for help. 
-    See our <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and 
-    <a href="terms.html" target="_blank" rel="noopener">Terms</a>.
+    See our <a href="privacy.html" rel="noopener" target="_blank">Privacy Policy</a> and 
+    <a href="terms.html" rel="noopener" target="_blank">Terms</a>.
   </small>
 </label>
 </fieldset>
@@ -174,56 +175,54 @@
 <fieldset>
 <legend>Photos</legend>
 <p class="tiny">Upload clear photos: front, back, both sides, wheels/tires, interior front/rear, dash/odometer, engine bay, VIN sticker, and any flaws.</p>
-
 <label class="file">
-  <span>Vehicle photo 1 (optional)</span>
-  <input accept="image/*" id="photos" name="photo1" type="file" data-auto-compress>
+<span>Vehicle photo 1 (optional)</span>
+<input accept="image/*" data-auto-compress="" id="photos" name="photo1" type="file"/>
 </label>
 <div class="grid-2">
-  <label class="file">
-    <span>Vehicle photo 2 (optional)</span>
-    <input accept="image/*" id="photo2" name="photo2" type="file" data-auto-compress>
-  </label>
-  <label class="file">
-    <span>Vehicle photo 3 (optional)</span>
-    <input accept="image/*" id="photo3" name="photo3" type="file" data-auto-compress>
-  </label>
+<label class="file">
+<span>Vehicle photo 2 (optional)</span>
+<input accept="image/*" data-auto-compress="" id="photo2" name="photo2" type="file"/>
+</label>
+<label class="file">
+<span>Vehicle photo 3 (optional)</span>
+<input accept="image/*" data-auto-compress="" id="photo3" name="photo3" type="file"/>
+</label>
 </div>
 <div class="grid-2">
-  <label class="file">
-    <span>Vehicle photo 4 (optional)</span>
-    <input accept="image/*" id="photo4" name="photo4" type="file" data-auto-compress>
-  </label>
-  <label class="file">
-    <span>Vehicle photo 5 (optional)</span>
-    <input accept="image/*" id="photo5" name="photo5" type="file" data-auto-compress>
-  </label>
+<label class="file">
+<span>Vehicle photo 4 (optional)</span>
+<input accept="image/*" data-auto-compress="" id="photo4" name="photo4" type="file"/>
+</label>
+<label class="file">
+<span>Vehicle photo 5 (optional)</span>
+<input accept="image/*" data-auto-compress="" id="photo5" name="photo5" type="file"/>
+</label>
 </div>
 <label class="file">
-  <span>Vehicle photo 6 (optional)</span>
-  <input accept="image/*" id="photo6" name="photo6" type="file" data-auto-compress>
+<span>Vehicle photo 6 (optional)</span>
+<input accept="image/*" data-auto-compress="" id="photo6" name="photo6" type="file"/>
 </label>
-
 <div class="preview" id="photo-preview"></div>
 <div class="grid-2">
 <label class="file">
 <span>Carfax/Service records (optional)</span>
-<input accept=".pdf,image/*" name="records" type="file"/>
-</label>
+<input accept=".pdf,image/*" name="records" type="file">
+</input></label>
 <label class="file">
 <span>Dealer quote (optional)</span>
-<input accept=".pdf,image/*" name="dealer_quote_file" type="file"/>
-</label>
+<input accept=".pdf,image/*" name="dealer_quote_file" type="file">
+</input></label>
 </div>
 </fieldset>
 <label class="check">
-<input name="non_junker" required="" type="checkbox"/>
+<input name="non_junker" required="" type="checkbox">
           This is not a junk or parts-only vehicle.
-        </label>
+        </input></label>
 <label class="check">
-<input name="agree" required="" type="checkbox"/>
+<input name="agree" required="" type="checkbox">
           I agree to the <a href="terms.html" rel="noopener" target="_blank">Terms</a> and <a href="privacy.html" rel="noopener" target="_blank">Privacy Policy</a>.
-        </label>
+        </input></label>
 <div data-netlify-recaptcha="true"></div>
 <button class="cta" type="submit">Submit for Offer</button>
 <p class="form-success" hidden="">Thanks! We got your message and will text the team now.</p></form>
@@ -240,8 +239,7 @@
 <script src="assets/vin-decode.js"></script>
 <script src="assets/netlify-ajax-submit.js"></script>
 <script src="assets/app.js"></script>
-<script src="assets/swfla-sms.js"></script><script src="https://www.google.com/recaptcha/api.js" async defer></script>
-
+<script src="assets/swfla-sms.js"></script><script async="" defer="" src="https://www.google.com/recaptcha/api.js"></script>
 <script>
 (function(){
   if (window.__VIN_FALLBACK_WIRED__) return;
@@ -288,6 +286,5 @@
   }
 })();
 </script>
-
 </body>
 </html>
