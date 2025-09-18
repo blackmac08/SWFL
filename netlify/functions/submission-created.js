@@ -74,6 +74,19 @@ function valueByKeysOrWords(fields, exactKeys, wordsAll) {
   return undefined;
 }
 
+// NEW: find doc URLs anywhere by matching words in the field name (e.g., "dealer"+"quote")
+function docUrlsByKeyWords(fields, wordsAll) {
+  const words = wordsAll.map(w => String(w).toLowerCase());
+  const out = [];
+  for (const [key, val] of Object.entries(fields)) {
+    const low = key.toLowerCase();
+    if (words.every(w => low.includes(w))) {
+      extractUrls(val, { predicate: isDocUrl }).forEach(u => out.push(u));
+    }
+  }
+  return Array.from(new Set(out));
+}
+
 async function twilioSend({ to, body, mediaUrls = [] }) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken  = process.env.TWILIO_AUTH_TOKEN;
@@ -193,9 +206,15 @@ exports.handler = async (event) => {
     if (options) lines.push(`Options: ${String(options).slice(0, 160)}${String(options).length > 160 ? "..." : ""}`);
     if (asking)  lines.push(`Asking: ${asking}`);
 
-    // Labeled doc links (SMS/MMS)
-    const dqDocs = extractUrls(dealerQuoteVal, { predicate: isDocUrl });
-    const cfDocs = extractUrls(recordsVal,     { predicate: isDocUrl });
+    // Labeled doc links (SMS/MMS) — Dealer Quote now mirrors CarFax behavior
+    const dqDocs = Array.from(new Set([
+      ...extractUrls(dealerQuoteVal, { predicate: isDocUrl }),
+      ...docUrlsByKeyWords(fields, ["dealer", "quote"])
+    ]));
+    const cfDocs = Array.from(new Set([
+      ...extractUrls(recordsVal, { predicate: isDocUrl }),
+      ...docUrlsByKeyWords(fields, ["carfax"])
+    ]));
     if (dqDocs.length) lines.push(`Dealer Quote (PDF): ${dqDocs.join(" ")}`);
     if (cfDocs.length) lines.push(`CarFax (PDF): ${cfDocs.join(" ")}`);
 
