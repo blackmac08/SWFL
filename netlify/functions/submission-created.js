@@ -1,6 +1,9 @@
 // netlify/functions/submission-created.js
-// Robust version: logs incoming keys and accepts multiple truthy values for checkbox.
-// Sends SMS via Twilio Messaging Service on each Netlify form submission.
+// Reads Netlify form fields from the most common shapes:
+//  - payload.payload.data (webhook style for form notifications)
+//  - payload.payload         (lambda trigger style)
+//  - payload                 (fallback)
+// Sends SMS via Twilio Messaging Service if user opted in.
 //
 // Env vars required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SID
 
@@ -53,21 +56,30 @@ async function sendTwilioSMS({ to, body }) {
 
 exports.handler = async (event) => {
   try {
-    const payload = JSON.parse(event.body);
-    const data = payload && (payload.payload || payload) || {};
+    const envelope = JSON.parse(event.body) || {};
+    const body = envelope.payload || envelope || {};
+    const fields = body.data || body || {};
 
-    // Debug: log the keys we received and the raw sms_opt_in value
-    const keys = Object.keys(data).sort();
-    console.log("Submission keys:", keys.join(", "));
-    console.log("sms_opt_in raw value:", data.sms_opt_in);
+    // Debug: log shapes and keys
+    console.log("Top-level keys:", Object.keys(envelope).join(", "));
+    console.log("payload keys:", body && typeof body === "object" ? Object.keys(body).join(", ") : "(none)");
+    console.log("field keys:", Object.keys(fields).join(", "));
+    console.log("sms_opt_in raw:", fields.sms_opt_in || fields["Sms Opt In"]);
 
-    const { phone, full_name, make, model, year } = data;
-    const opted = isOptedIn(data.sms_opt_in);
+    // Pull form fields (support both snake_case and titled keys)
+    const rawOpt = fields.sms_opt_in ?? fields["Sms Opt In"];
+    const opted = isOptedIn(rawOpt);
 
     if (!opted) {
       console.info("Submission received without SMS opt-in (interpreted). Skipping SMS.");
       return { statusCode: 200, body: "No SMS opt-in" };
     }
+
+    const phone = fields.phone ?? fields.Phone;
+    const full_name = fields.full_name ?? fields["Full Name"] ?? fields.name;
+    const make = fields.make ?? fields.Make;
+    const model = fields.model ?? fields.Model;
+    const year = fields.year ?? fields.Year;
 
     const normalized = normalizeUS(phone);
     if (!normalized) {
