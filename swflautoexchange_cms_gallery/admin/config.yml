@@ -1,0 +1,25 @@
+backend:
+  name: git-gateway
+  branch: main
+
+media_folder: "assets/uploads"       # where uploaded images are stored in the repo
+public_folder: "/assets/uploads"     # how the website references them
+
+publish_mode: editorial_workflow
+
+collections:
+  - label: "Recently Purchased"
+    name: "recent_purchases"
+    file: "data/recent-purchases.json"
+    fields:
+      - label: "Vehicles"
+        name: "vehicles"
+        widget: "list"
+        summary: "{{fields.date}} — {{fields.title}}"
+        fields:
+          - {label: "Photo", name: "image", widget: "image"}
+          - {label: "Year Make Model / Trim", name: "title", widget: "string"}
+          - {label: "Subtitle (optional)", name: "subtitle", widget: "string", required: false}
+          - {label: "Date Purchased", name: "date", widget: "datetime", format: "YYYY-MM-DD"}
+          - {label: "Location (optional)", name: "location", widget: "string", required: false}
+          - {label: "Notes (optional)", name: "notes", widget: "text", required: false}
