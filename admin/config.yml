@@ -1,29 +1,3 @@
 backend:
   name: git-gateway
   branch: main
-
-media_folder: "assets/uploads"
-public_folder: "/assets/uploads"
-
-publish_mode: editorial_workflow
-
-collections:
-  - label: "Recently Purchased"
-    name: "recent_purchases"
-    files:
-      - label: "Vehicles"
-        name: "vehicles"
-        file: "data/recent-purchases.json"
-        format: "json"
-        fields:
-          - label: "Vehicles"
-            name: "vehicles"
-            widget: list
-            summary: "{{fields.title}} — {{fields.location}} — {{fields.date}}"
-            fields:
-              - { label: "Title", name: "title", widget: "string" }
-              - { label: "Subtitle", name: "subtitle", widget: "string", required: false }
-              - { label: "Date", name: "date", widget: "datetime", time_format: false }
-              - { label: "Location", name: "location", widget: "string", required: false }
-              - { label: "Notes", name: "notes", widget: "text", required: false }
-              - { label: "Image", name: "image", widget: "image", required: false }

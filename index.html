@@ -3,102 +3,45 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>SWFL Auto Exchange | We Beat Dealer Trade-Ins in Naples &amp; SWFL</title>
-<meta content="Private car buyer in Naples &amp; SWFL. We aim to beat dealer trade-ins with fast, discreet offers and concierge pickup. No dealer quote required." name="description"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&amp;family=Playfair+Display:wght@600;800&amp;display=swap" rel="stylesheet"/>
+<title>SWFL Auto Exchange | Sell Your Car Fast in Naples, Bonita Springs & Estero</title>
+<meta name="description" content="Private car buyer in Naples & SWFL. We aim to beat dealer trade-ins with fast, discreet offers and concierge pickup.">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;800&display=swap" rel="stylesheet"/>
 <link href="assets/styles.css" rel="stylesheet"/>
+<link href="assets/styles-gallery.css" rel="stylesheet"/>
 </head>
 <body>
 <header class="site-header">
 <div class="wrap">
 <div class="brand">
-<div class="brand-logo"><img alt="Logo" src="assets/logo.png"/></div>
-<div class="name">
-<strong>SWFL Auto Exchange</strong>
-<span>Naples • Marco • Bonita • Estero • Fort Myers • Cape Coral • Nationwide</span>
-</div>
+  <div class="brand-logo"><img alt="Logo" src="assets/logo.png"/></div>
+  <div class="name"><strong>SWFL Auto Exchange</strong><span>Naples • Marco • Bonita • Estero • Fort Myers • Cape Coral • Nationwide</span></div>
 </div>
 <nav>
-<a href="#how-it-works">How it works</a>
-<a href="#sell-form">Get an offer</a>
-<a href="privacy.html">Privacy</a>
+  <a href="#how-it-works">How it works</a>
+  <a href="#sell-form">Get an offer</a>
 </nav>
 </div>
 </header>
-<section class="hero">
-<div class="wrap hero-grid">
-<div class="hero-copy">
-<h1><span class="serif">Nationwide Private Buyer</span> for <span class="accent">Everyday Cars to Exotics</span></h1>
-<p>We provide discreet valuations and strong cash offers—<strong>aiming to beat your dealer trade-in</strong> when you have one. No dealer quote? <strong>No problem</strong>—we’ll still give you a fast, fair offer and handle everything end-to-end. WE WILL PICK UP YOUR CAR!! No need to come to us.</p>
-<ul class="bullets">
-<li>Clean, non-junk vehicles (we also handle lien payoffs)</li>
-<li>Late-model, classics, <strong>exotics &amp; collectibles</strong> welcome</li>
-<li>No dealer trade-in quote required</li>
-<li>Fast responses, no obligation</li>
-</ul>
-<a class="cta" href="#sell-form">Get your offer</a>
-<p class="tiny hero-contact">Questions? <a href="tel:+12392502000">(239) 250-2000</a> • <a href="tel:+12395954021">(239) 595-4021</a> • <a href="mailto:offers@swflautoexchange.com">offers@swflautoexchange.com</a></p>
-<p class="tiny">*Subject to inspection &amp; market conditions.</p>
-</div>
-</div>
-</section>
 
-<!-- ▼▼▼ Recently Purchased Gallery (Netlify CMS-driven) ▼▼▼ -->
-<link rel="stylesheet" href="assets/styles-gallery.css?v=8">
-<section id="recent-purchases" class="gallery" aria-labelledby="recent-purchases-title">
+<section id="recent-purchases" class="gallery">
   <div class="wrap">
-    <h2 id="recent-purchases-title" class="section-title">Recently Purchased Vehicles</h2>
+    <h2>Recently Purchased Vehicles</h2>
     <div id="recent-purchases-grid" class="gallery-grid" aria-live="polite"></div>
   </div>
 </section>
-<script defer src="assets/js/gallery.js?v=8"></script>
-<!-- ▲▲▲ End Recently Purchased Gallery ▲▲▲ -->
-
-<section class="hiw" id="how-it-works">
-<div class="wrap">
-<h2>How it works</h2>
-<div class="steps">
-<div class="step">
-<div class="num">1</div>
-<h3>Tell us about the car</h3>
-<p>VIN, mileage, options, condition, title status, and your ZIP for pickup.</p>
-</div>
-<div class="step">
-<div class="num">2</div>
-<h3>Upload photos</h3>
-<p>We’ll need clear shots of all sides, interior, odometer, VIN plate, and any flaws.</p>
-</div>
-<div class="step">
-<div class="num">3</div>
-<h3>Get an offer</h3>
-<p>We evaluate quickly and aim to beat your dealer’s trade-in price. No obligation.</p>
-</div>
-</div>
-</div>
-</section>
+<script defer src="assets/js/gallery.js"></script>
 
 <footer class="site-footer">
 <div class="wrap">
-<div>© <span id="year"></span> SWFL Auto Exchange. All rights reserved.</div>
-<div class="tiny">Serving Naples, Marco Island, Bonita Springs, Estero, Fort Myers, Cape Coral &amp; all across America. Pickup &amp; payment options vary by location.</div>
-<div class="tiny"><a href="tel:+12392502000">(239) 250-2000</a> • <a href="tel:+12395954021">(239) 595-4021</a> • <a href="mailto:offers@swflautoexchange.com">offers@swflautoexchange.com</a></div>
+  <div>© <span id="year"></span> SWFL Auto Exchange. All rights reserved.</div>
+  <div class="tiny">Serving Naples, Marco Island, Bonita Springs, Estero, Fort Myers, Cape Coral & across America.</div>
 </div>
 </footer>
 
-<!-- Invite redirect: make email invite links open /admin automatically -->
 <script>
   if (location.hash && location.hash.startsWith('#invite_token=')) {
     location.href = '/admin/' + location.hash;
   }
 </script>
-
-<script src="assets/compress-before-upload.js"></script>
-<script src="assets/vin-decode.js"></script>
-<script src="assets/netlify-ajax-submit.js"></script>
-<script src="assets/app.js"></script>
-<script src="assets/swfla-sms.js"></script>
-<script async defer src="https://www.google.com/recaptcha/api.js"></script>
 </body>
 </html>
