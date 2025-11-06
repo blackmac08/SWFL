@@ -1,0 +1,59 @@
+/* Recent Purchases Gallery */
+#recent-purchases {
+  padding: 60px 20px;
+  background: #f8f9fa;
+}
+
+#recent-purchases .section-title {
+  text-align: center;
+  font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+  margin: 0 0 24px;
+  color: #0a1f44;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.rp-card {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  text-align: left;
+}
+
+.rp-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rp-copy {
+  padding: 14px 14px 18px;
+}
+
+.rp-title {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.rp-subtitle {
+  margin: 0 0 6px;
+  opacity: 0.8;
+}
+
+.rp-meta {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  opacity: 0.75;
+}
+
+.rp-notes {
+  margin: 0;
+  font-size: 0.95rem;
+}
