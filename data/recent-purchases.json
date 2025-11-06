@@ -3,18 +3,18 @@
     {
       "image": "/assets/uploads/sample-f150.jpg",
       "title": "2021 Ford F-150 Lariat 4x4",
-      "subtitle": "Low miles \u2022 One-owner",
+      "subtitle": "Low miles • One-owner",
       "date": "2025-10-15",
       "location": "Naples, FL",
       "notes": "Clean CarFax. Concierge pickup."
     },
     {
-      "image": "/assets/uploads/sample-x5.jpg",
-      "title": "2020 BMW X5 xDrive40i",
-      "subtitle": "M Sport Package",
-      "date": "2025-10-27",
+      "image": "/assets/uploads/sample-bmw.jpg",
+      "title": "2019 BMW M4 Competition",
+      "subtitle": "Carbon buckets • ZCP",
+      "date": "2025-01-05",
       "location": "Bonita Springs, FL",
-      "notes": "Same-day cash offer."
+      "notes": "Example entry to show multiple cards."
     }
   ]
 }
